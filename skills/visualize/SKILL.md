@@ -1,17 +1,17 @@
 ---
 name: visualize
-description: "Add a correct, minimal visual to a lesson — a diagram or geometric picture — that renders inline in the Obsidian log. Use when an idea is genuinely clearer as a picture: a dependency graph, system/flow, sequence, state machine, tree, comparison, or a spatial/geometric thing (coordinate geometry, number line, vectors, a plot, a physical layout). Outsources authoring+rendering to a maker subagent that verifies the image by looking at it, then you embed the returned file."
+description: "Add a correct, minimal visual — a diagram or geometric picture. Use when an idea is genuinely clearer as a picture: a stage dependency graph, an architecture/layer diagram, a system flow, a sequence, a state machine, a tree, a comparison, or a spatial/geometric thing (coordinate geometry, number line, vectors, a plot, a memory/object layout). Outsources authoring+rendering to a maker subagent that verifies the image by looking at it, then you embed the returned file. In generated practice projects, write a plain ```mermaid``` code block into the README/docs instead of a PNG — see 'Visuals in a generated project' below."
 ---
 
 # Visualize
 
-A picture earns its place only when it shows something words can't — shape, structure, direction, relationship, geometry. This skill produces ONE such picture, guarantees it is **correct** (the maker renders it and looks at it before returning), and drops it into the lesson so it renders inline in the Obsidian `md-log` file.
+A picture earns its place only when it shows something words can't — shape, structure, direction, relationship, geometry. This skill produces ONE such picture, guarantees it is **correct** (the maker renders it and looks at it before returning), and drops it into your reply so it renders inline in the Obsidian `md-log` file.
 
 You are the **creative director**. You decide the exact idea and distill it to its fewest carrying elements. A **maker subagent** does the authoring, rendering, visual verification, and saving, then returns a filename. You embed that filename in your reply.
 
 ## When to visualize (and when not to)
 
-This teaching system builds a **dependency graph in the learner's head** — axioms at the root, derived facts hanging off them. A visual is powerful exactly when it makes that structure (or a geometry) visible. Reach for one when:
+This system builds a **dependency graph in the learner's head** — foundations at the root, later facts and later stages hanging off them. In a practice project that graph is also *physical* (the folder layout, the layer boundaries), so a visual is powerful exactly when it makes the structure — or a geometry — visible. Reach for one when:
 
 - The idea is a **structure or relationship**: dependencies, a system with parts and arrows, a flow/pipeline, a sequence of exchanges, a state machine, a tree/hierarchy, a comparison, a containment (what's inside vs outside).
 - The idea is **spatial or geometric**: coordinate geometry, a number line, vectors, a function's shape, a physical arrangement.
@@ -59,15 +59,15 @@ path: <cwd>/viz/viz-<slug>-<timestamp>.png
 
 If it returns `RESULT: NONE`, it couldn't make a correct picture of the brief — simplify or rethink, or decide the visual isn't worth it. Never hand-author or fake a diagram yourself; correctness depends on the maker's render-and-inspect loop.
 
-## Embed it in the lesson
+## Embed it in the chat reply
 
-Put the embed directly in your teaching reply, using Obsidian's wikilink embed with the returned **filename** (not the full path) and a display width:
+Put the embed directly in your reply, using Obsidian's wikilink embed with the returned **filename** (not the full path) and a display width:
 
 ```
 ![[viz-<slug>-<timestamp>.png|500]]
 ```
 
-That's all. The `md-log` extension mirrors your reply text verbatim into the linked `.md`, and Obsidian resolves the embed by filename anywhere in the vault (the maker saves into the project's `viz` folder, which is inside the vault) — so it renders inline in the lesson automatically. Width `|500` is a good default; use larger for dense diagrams. Introduce the visual in a sentence, then let it carry the idea — don't narrate every element back in prose.
+That's all. The `md-log` extension mirrors your reply text verbatim into the linked `.md`, and Obsidian resolves the embed by filename anywhere in the vault (the maker saves into the project's `viz` folder, which is inside the vault) — so it renders inline automatically. Width `|500` is a good default; use larger for dense diagrams. Introduce the visual in a sentence, then let it carry the idea — don't narrate every element back in prose.
 
 ## Why this is reliable
 
@@ -76,3 +76,15 @@ That's all. The `md-log` extension mirrors your reply text verbatim into the lin
 - Unique filenames keep Obsidian's by-filename embed resolution unambiguous.
 
 > The makers render through the project's `visual-tools` extension (Mermaid via a bundled `@mermaid-js/mermaid-cli` + installed Chrome; SVG via `rsvg-convert`, fallback ImageMagick). You don't render anything yourself — you only brief the maker and embed the filename it returns.
+
+## Visuals in a generated project
+
+The PNG pipeline above publishes into the Obsidian vault and is right for **chat** (the plan you present, a diagram in the coaching conversation). It is wrong for files you scaffold into a practice project: that project lives in git, gets opened in an editor and on a git host, and must not carry binary assets or vault-only `![[...]]` embeds.
+
+So in generated project files — `README.md`, `docs/ARCHITECTURE.md` — write the diagram as a **fenced ```mermaid``` code block** yourself, no maker and no PNG:
+
+- Keep it to the stage DAG or the layer/dependency diagram: ≤7 nodes, short labels.
+- Every edge must be true at handover time. If a later stage *adds* a layer, say so in prose next to the diagram rather than drawing something that doesn't exist yet.
+- For architecture subjects the diagram is part of the lesson — draw the dependency rule (which way the arrows point), because that direction *is* the subject.
+
+Use the makers for a PNG only when the picture belongs in the session log (a spatial/geometric idea — an object layout, a memory diagram, a timeline of concurrent operations), and mention the project-relative place it came from so he can find it again.
