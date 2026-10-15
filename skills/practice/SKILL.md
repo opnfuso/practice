@@ -1,6 +1,6 @@
 ---
 name: practice
-description: Turn a programming subject into a practice project he builds himself. Use ANY time he wants to learn programming by doing — language features and data types, clean code, clean architecture, design patterns, testing, async, types, concurrency, refactoring, a framework or tool. Probes his level with graded questions, plans a project whose subject is load-bearing, then scaffolds a real-but-incomplete codebase: runnable skeleton, staged TODO stubs, a failing test per stage as the feedback loop, motivated briefs, and a three-tier hint ladder. You never write the code that carries the lesson — he does.
+description: 'Turn a programming subject into a practice project he builds himself. Use ANY time he wants to learn programming by doing — language features and data types, clean code, clean architecture, design patterns, testing, async, types, concurrency, refactoring, a framework or tool. Probes his level with graded questions, plans a project whose subject is load-bearing, then scaffolds a real-but-incomplete codebase: runnable skeleton, staged TODO stubs, a failing test per stage as the feedback loop, motivated briefs, and a three-tier hint ladder. You never write the code that carries the lesson — he does.'
 ---
 
 # Practice — learn programming by building the thing
