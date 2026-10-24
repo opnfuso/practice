@@ -1,5 +1,7 @@
 # Project shapes — picking the project so the subject is unavoidable
 
+The **kind** of project (`real-life` / `build-it` / `read-debug` / `mix`) is chosen first — that decision lives in `kinds.md`. Within a kind, the remaining design question is the shape: how the subject becomes the only way through.
+
 The single design decision that determines whether the project teaches anything: **the subject must be load-bearing**. Test every candidate: *can he complete this stage without ever exercising the subject?* If yes, choose a different project or a different stage.
 
 ## The four shapes
@@ -25,7 +27,7 @@ Shapes combine: a legacy refactor inside a greenfield project (stage 5: "the mod
 
 ## Subject → project mappings
 
-Starting points, not a menu to copy blindly — always re-derive from *his* goal (Phase 1b) and edge (Phase 1a).
+Starting points, not a menu to copy blindly — always re-derive from *his* goal (Phase 1c) and edge (Phase 1b).
 
 | Subject | Project that forces it | Shape |
 |---|---|---|
@@ -47,12 +49,14 @@ Starting points, not a menu to copy blindly — always re-derive from *his* goal
 | Security basics (input validation, injection, authz) | A deliberately vulnerable app + a test suite that *attacks* it; each stage closes one hole while keeping the feature working | Legacy refactor + test-writing |
 | Performance | A working implementation with a benchmark harness in `verify`; stages are measurable targets (p95, allocations) and profiling tasks | Extension |
 | Git / build tooling / CI | A repo with a broken build pipeline he must fix; `verify` runs the pipeline locally | Legacy refactor |
+| How a piece of technology works inside (Redis, a DB, a queue, an interpreter, a protocol, an event loop) | Implement it — `kinds.md` decides the fidelity (spec-model vs. compatible with the real client) | Greenfield (`build-it`) |
+| Working with code he didn't write (diagnosis, regression hunting, defect triage) | A plausible-but-wrong codebase plus tickets: reproduce, diagnose, fix | Test-writing / bug hunt (`read-debug`) |
 
 ## Domain selection
 
 The domain is motivation, so it isn't decoration — but it must stay *cheap*. Rules:
 
-- **He picks it, from concrete pitches.** Offer 2–3 in Phase 1b ("a CSV ledger linter, a subtitle-file fixer, a playlist analyzer") rather than an open question; interest is what carries him through stage 5.
+- **He picks it, from concrete pitches.** Ask first whether he has a domain from his own work (the best answer there is); otherwise offer 2–3 in Phase 1c ("a CSV ledger linter, a subtitle-file fixer, a playlist analyzer") rather than an open question; interest is what carries him through stage 5.
 - **Data must be trivially fakeable.** Files, text, in-memory collections, SQLite, fixtures. No live services, no accounts, no API keys, no scraping.
 - **The domain must not itself be a new subject.** If he has to learn finance *and* clean architecture, he'll learn neither. Prefer domains he already has a mental model of: files, playlists, todo items, shopping carts, logs, CSV exports, subtitles, game scores, recipes.
 - **The domain must generate edge cases for free.** Empty inputs, duplicates, unicode, missing fields, huge files, out-of-order events. Edge cases are where the misconception-catching tests come from — a domain with no natural edge cases can't teach semantics.
@@ -60,15 +64,11 @@ The domain is motivation, so it isn't decoration — but it must stay *cheap*. R
 
 ## Scale
 
-| Budget | Stages | Files he touches | Total |
-|---|---|---|---|
-| One evening | 3–4 | 3–5 | ~2 h |
-| A weekend | 5–6 | 5–8 | ~4 h |
-| A week of evenings | 7–8 | 8–12 | ~6 h |
+Stage count and stage size follow the **kind** and the subject's complexity — the budget table is in `kinds.md` (defaults: `real-life` 4–8 × 30–60 min, `build-it` 4–8 × 45–90 min, `read-debug` 2–5 × 20–60 min, `mix` = real-life plus 1–2 machinery stages). Files he touches scales with it: roughly one source file per stage, plus tests.
 
-Hard ceiling: **8 stages**. Beyond that the tail never gets built, and an unfinished project teaches "I don't finish things". If the subject is bigger than 8 stages, cut it into **two projects** (a foundation project and an advanced one) and say so in the plan — that's a better outcome than one abandoned ladder.
+The real constraint is **his time budget**: the whole ladder must fit inside it, with margin for being stuck. When it can't, cut the subject into **two projects** (a foundation project and an advanced one) and say so in the plan — that's a better outcome than one abandoned ladder. Whatever the budget, an unfinished tail teaches "I don't finish things": never plan more than he can actually finish.
 
-Pre-written scaffolding scales inversely with his level (Phase 1a): a beginner gets signatures, types, fixtures, and one stub per stage; an experienced learner gets interfaces and a lot of blank space. Never so little scaffolding that he's fighting config instead of the subject — config isn't the lesson unless config *is* the subject.
+Pre-written scaffolding scales inversely with his level (Phase 1b): a beginner gets signatures, types, fixtures, and one stub per stage; an experienced learner gets interfaces and a lot of blank space. Never so little scaffolding that he's fighting config instead of the subject — config isn't the lesson unless config *is* the subject.
 
 ## Language notes (keep `verify` fast and per-stage)
 

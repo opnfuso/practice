@@ -6,38 +6,50 @@
  * stage, and one brief per stage. Two problems show up once he starts working,
  * and this extension solves both:
  *
- *   1. Help must be GRADUATED. Hints live in `docs/hints/stage-NN.md` in three
- *      tiers (nudge → approach → isomorphic worked example on different data).
- *      A coaching agent that just `read`s that file sees every tier at once and
- *      leaks the whole ladder — usually straight into writing the solution. So
- *      the tiers are reachable ONLY through the `hint` tool, one tier per call,
- *      and every call is logged. The log is the calibration signal: a stage
- *      that always needs tier 3 was mis-scoped.
+ *   1. Help must be GRADUATED. Hints live in `docs/hints/stage-NN.md` in four
+ *      tiers (nudge → concept → approach → isomorphic worked example on
+ *      different data). A coaching agent that just `read`s that file sees every
+ *      tier at once and leaks the whole ladder — usually straight into writing
+ *      the solution. So the tiers are reachable ONLY through the `hint` tool,
+ *      one tier per call, and every call is logged. The log is the calibration
+ *      signal: a stage that always needs the top tier was mis-scoped.
  *
  *   2. Progress must be OBJECTIVE. The test suite is the teacher, so "how am I
  *      doing?" should be answered by running it, not by opinion. `progress`
  *      runs each stage's own verify command from the manifest and returns a
  *      compact green/red ladder with the failing tail — no full test dumps into
- *      context.
+ *      context. It also shows each stage's definition-of-done quiz state, which
+ *      is blocking: green code plus a wrong "why" is not a finished stage.
+ *
+ *   3. Acceptance must be able to HIDE. Challenge stages carry a hidden
+ *      acceptance suite in `hidden-tests/` — the regression he didn't think to
+ *      check, the ticket's two neighbouring cases, what the real client would
+ *      catch. `grade` runs it and returns failure names and messages only: he
+ *      fixes it from the message first, exactly like a QA report at work. The
+ *      suite is a grader, so it is never relayed as code.
  *
  * Both tools read the project manifest, `PRACTICE.json`, which the scaffolding
  * step writes at the project root:
  *
  *   {
  *     "version": 1,
+ *     "kind": "real-life",
  *     "subject": "JavaScript data types",
  *     "language": "typescript",
  *     "stages": [
  *       { "n": 1, "slug": "primitives-in", "title": "…",
  *         "brief": "docs/stages/stage-01-primitives-in.md",
  *         "hints": "docs/hints/stage-01.md",
- *         "verify": "npm test -- stage01" }
+ *         "quiz": "docs/quiz/stage-01.md",
+ *         "verify": "npm test -- stage01",
+ *         "hidden": "npm run hidden -- stage01" }
  *     ]
  *   }
  *
  * Commands:
  *   /hint [stage] [tier]  — ask for a hint (relayed verbatim by the agent)
  *   /check [stage]        — run the stage verify commands and show the ladder
+ *   /grade [stage]        — run the hidden acceptance suite (names + messages)
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -48,7 +60,8 @@ import { Type } from "typebox";
 
 const MANIFEST = "PRACTICE.json";
 const HINT_LOG = path.join(".practice", "hint-log.jsonl");
-const MAX_TIERS = 3;
+const QUIZ_LOG = path.join(".practice", "quiz-log.jsonl");
+const MAX_TIERS = 4;
 const VERIFY_TIMEOUT_MS = 120_000;
 const OUTPUT_TAIL_LINES = 25;
 
@@ -58,11 +71,14 @@ interface Stage {
 	title: string;
 	brief?: string;
 	hints?: string;
+	quiz?: string;
 	verify?: string;
+	hidden?: string;
 }
 
 interface Manifest {
 	version: number;
+	kind?: string;
 	subject: string;
 	project?: string;
 	language?: string;
@@ -225,6 +241,37 @@ function summarizeUsage(log: HintUsage[]): string {
 		.join(" · ");
 }
 
+// ── quiz log (definition-of-done quizzes, appended by the coach) ────────────
+
+interface QuizLogEntry {
+	ts: string;
+	stage: number;
+	ok: boolean;
+}
+
+function readQuizLog(dir: string): QuizLogEntry[] {
+	const file = path.join(dir, QUIZ_LOG);
+	if (!fs.existsSync(file)) return [];
+	try {
+		return fs.readFileSync(file, "utf-8")
+			.split("\n")
+			.filter((l) => l.trim())
+			.map((l) => {
+				try { return JSON.parse(l) as QuizLogEntry; } catch { return null; }
+			})
+			.filter((x): x is QuizLogEntry => x !== null);
+	} catch {
+		return [];
+	}
+}
+
+/** Last logged outcome of a stage's DoD quiz: true = answered right, false = still open, undefined = not asked yet. */
+function quizOutcome(dir: string, n: number): boolean | undefined {
+	const entries = readQuizLog(dir).filter((e) => e.stage === n);
+	if (entries.length === 0) return undefined;
+	return entries[entries.length - 1].ok;
+}
+
 // ── verify runs ─────────────────────────────────────────────────────────────
 
 function runVerify(dir: string, command: string): { code: number | null; tail: string; ms: number } {
@@ -252,15 +299,15 @@ export default function practice(pi: ExtensionAPI) {
 		name: "hint",
 		label: "hint",
 		description:
-			"Fetch ONE tier of ONE stage's hints from the learner's practice project. Hints are written in three tiers: 1 = a nudge that redirects attention (no approach), 2 = the approach in words (no code), 3 = an isomorphic worked example on DIFFERENT data (still not his solution). Call with no `stage` to list the project's stages. Relays the tier text verbatim and records the request in the project's hint log, which is how you calibrate whether a stage is mis-scoped. Never `read` docs/hints/* directly — that exposes all three tiers at once and defeats the ladder.",
+			"Fetch ONE tier of ONE stage's hints from the learner's practice project. Hints are written in four tiers: 1 = a nudge that redirects attention (no approach), 2 = the concept explained plainly (the missing knowledge, no code), 3 = the approach in words (no code), 4 = an isomorphic worked example on DIFFERENT data (still not his solution). Call with no `stage` to list the project's stages. Relays the tier text verbatim and records the request in the project's hint log, which is how you calibrate whether a stage is mis-scoped. Never `read` docs/hints/* directly — that exposes all four tiers at once and defeats the ladder.",
 		promptSnippet:
-			"Use `hint` to give the learner graduated help on a practice project stage (tier 1 → 2 → 3), one tier per call.",
+			"Use `hint` to give the learner graduated help on a practice project stage (tier 1 → 2 → 3 → 4), one tier per call.",
 		promptGuidelines: [
 			"Always start at tier 1 and escalate only after he has actually tried again. Never hand him tier 3 first.",
 			"Never read docs/hints/* with the read tool — the ladder only works if you see one tier at a time, through this tool.",
 			"Relay the hint text VERBATIM. Do not extend it, do not translate it into code, do not 'just show him the fix'. A hint that becomes a solution destroys the exercise.",
 			"After giving a hint, send him back to the code: ask what he'll try, or tell him the verify command to re-run. Do not solve it for him.",
-			"If he is still stuck after tier 3, do NOT write his code. Narrow the problem instead: isolate the failing case, ask a diagnostic question, or work a separate toy example together and let him port it.",
+			"If he is still stuck after tier 4, do NOT write his code. Narrow the problem instead: isolate the failing case, ask a diagnostic question, or work a separate toy example together and let him port it.",
 			"Read the returned usage summary: a stage that repeatedly needs tier 3 is mis-scoped — say so and offer to re-cut it.",
 		],
 		parameters: Type.Object({
@@ -271,7 +318,7 @@ export default function practice(pi: ExtensionAPI) {
 				description: "Stage number (e.g. 3) or slug (e.g. \"parse-dates\"). Omit to list the project's stages instead of returning a hint.",
 			})),
 			tier: Type.Optional(Type.Number({
-				description: "Hint tier: 1 (nudge), 2 (approach), 3 (isomorphic example). Defaults to 1. Escalate only after an attempt.",
+				description: "Hint tier: 1 (nudge), 2 (concept), 3 (approach), 4 (isomorphic example). Defaults to 1. Escalate only after an attempt.",
 				minimum: 1,
 				maximum: MAX_TIERS,
 			})),
@@ -398,23 +445,41 @@ export default function practice(pi: ExtensionAPI) {
 				};
 			}
 
-			const results: Array<{ n: number; slug: string; pass: boolean; ms: number; tail: string }> = [];
+			const results: Array<{ n: number; slug: string; pass: boolean; ms: number; tail: string; quiz?: boolean; quizOk?: boolean; hidden: boolean }> = [];
 			for (const stage of runnable) {
 				onUpdate?.({
 					content: [{ type: "text" as const, text: `Running stage ${stage.n} (${stage.slug})…` }],
 					details: { running: stage.n },
 				});
 				const r = runVerify(dir, stage.verify!);
-				results.push({ n: stage.n, slug: stage.slug, pass: r.code === 0, ms: r.ms, tail: r.tail });
+				results.push({
+					n: stage.n,
+					slug: stage.slug,
+					pass: r.code === 0,
+					ms: r.ms,
+					tail: r.tail,
+					quiz: !!stage.quiz,
+					quizOk: stage.quiz ? quizOutcome(dir, stage.n) : undefined,
+					hidden: !!stage.hidden,
+				});
 			}
 
 			const green = results.filter((r) => r.pass).length;
 			const lines = [`${manifest.subject} — ${green}/${results.length} stage verify commands green`];
 			for (const r of results) {
-				lines.push(`${r.pass ? "✓" : "✗"} stage ${r.n} ${r.slug} (${(r.ms / 1000).toFixed(1)}s)`);
+				const marks = [
+					r.quiz ? `quiz ${r.quizOk === true ? "✓" : r.quizOk === false ? "✗ open" : "pending"}` : null,
+					r.hidden ? "hidden suite" : null,
+				].filter(Boolean).join(" · ");
+				lines.push(`${r.pass ? "✓" : "✗"} stage ${r.n} ${r.slug} (${(r.ms / 1000).toFixed(1)}s)${marks ? ` — ${marks}` : ""}`);
 				if (!r.pass && r.tail) {
 					for (const l of r.tail.split("\n")) lines.push(`    ${l}`);
 				}
+			}
+
+			const openQuiz = results.filter((r) => r.quiz && r.pass && r.quizOk !== true).map((r) => r.n);
+			if (openQuiz.length > 0) {
+				lines.push(`Definition-of-done quiz still open for stage ${openQuiz.join(", ")} — a stage is not done until he answers it.`);
 			}
 
 			return {
@@ -423,6 +488,91 @@ export default function practice(pi: ExtensionAPI) {
 					status: "ok",
 					project: dir,
 					green,
+					total: results.length,
+					stages: results.map((r) => ({ n: r.n, slug: r.slug, pass: r.pass, ms: r.ms, quizOk: r.quizOk, hidden: r.hidden })),
+				},
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "grade",
+		label: "grade",
+		description:
+			"Run a practice project's HIDDEN acceptance suite for one stage (or every stage that declares one) and return the test-runner output — failure names and messages. This is the stage-completion gate, not the feedback loop: the visible per-stage verify command stays the learner's fast loop. Call it when a stage's verify is green (or when he asks to be graded). Never `read` files under hidden-tests/ — you relay failures as names and messages only, never as code.",
+		promptSnippet:
+			"Use `grade` to run the hidden acceptance suite when a stage's visible verify is green.",
+		promptGuidelines: [
+			"Run `grade` only after the stage's visible verify is green, or when he explicitly asks to be graded. It is a completion gate, not a feedback loop.",
+			"Relay failure names and messages ONLY. Never read hidden-tests/, never paste or paraphrase the test code — a hidden suite he can read is a suite he can code toward.",
+			"On a hidden failure he fixes it blind first: the message is the only clue, and that is deliberate. If he is genuinely blocked after a real attempt, you may describe the failing SCENARIO in words (what input, what went wrong) — never the assertion, never the file.",
+			"Hidden suites catch narrow fixes and regressions; they never gate style or structure. A fix that passes everything by a route you wouldn't take is a review conversation with tradeoffs, not a block.",
+			"If a stage declares no hidden suite, say so and fall back to the visible verify plus the definition-of-done quiz.",
+		],
+		parameters: Type.Object({
+			project: Type.Optional(Type.String({
+				description: "Optional path to the practice project directory (containing PRACTICE.json). Auto-detected when omitted.",
+			})),
+			stage: Type.Optional(Type.Union([Type.Number(), Type.String()], {
+				description: "Grade only this stage (number or slug). Omit to run every stage that declares a hidden suite.",
+			})),
+		}),
+
+		async execute(_id, params, _signal, onUpdate, ctx) {
+			const resolved = resolveProject(ctx.cwd, params.project);
+			if (!resolved.ok) {
+				return { content: [{ type: "text" as const, text: resolved.error }], details: { status: "no-project" } };
+			}
+			const { dir, manifest } = resolved;
+
+			let stages = manifest.stages;
+			if (params.stage !== undefined && String(params.stage).trim() !== "") {
+				const one = findStage(manifest, params.stage);
+				if (!one) {
+					return {
+						content: [{ type: "text" as const, text: `No stage "${params.stage}". Stages:\n${stageList(manifest)}` }],
+						details: { status: "unknown-stage" },
+					};
+				}
+				stages = [one];
+			}
+
+			const runnable = stages.filter((s) => s.hidden && s.hidden.trim());
+			if (runnable.length === 0) {
+				const scope = stages.length === 1 ? `Stage ${stages[0].n} (${stages[0].slug})` : "No stage in this project";
+				return {
+					content: [{ type: "text" as const, text: `${scope} declares a hidden suite in ${MANIFEST}. Fall back to its visible verify command and its definition-of-done quiz.` }],
+					details: { status: "no-hidden" },
+				};
+			}
+
+			const results: Array<{ n: number; slug: string; pass: boolean; ms: number; tail: string }> = [];
+			for (const stage of runnable) {
+				onUpdate?.({
+					content: [{ type: "text" as const, text: `Grading stage ${stage.n} (${stage.slug})…` }],
+					details: { running: stage.n },
+				});
+				const r = runVerify(dir, stage.hidden!);
+				results.push({ n: stage.n, slug: stage.slug, pass: r.code === 0, ms: r.ms, tail: r.tail });
+			}
+
+			const passed = results.filter((r) => r.pass).length;
+			const lines = [`Hidden acceptance — ${passed}/${results.length} stages accepted`];
+			for (const r of results) {
+				lines.push(`${r.pass ? "✓" : "✗"} stage ${r.n} ${r.slug} (${(r.ms / 1000).toFixed(1)}s)`);
+				if (!r.pass && r.tail) {
+					for (const l of r.tail.split("\n")) lines.push(`    ${l}`);
+				}
+			}
+			lines.push("");
+			lines.push("Relay the failure names and messages above and nothing else. He fixes it from the message alone first; only if he is blocked do you describe the failing scenario in words, never the test.");
+
+			return {
+				content: [{ type: "text" as const, text: lines.join("\n") }],
+				details: {
+					status: "ok",
+					project: dir,
+					passed,
 					total: results.length,
 					stages: results.map((r) => ({ n: r.n, slug: r.slug, pass: r.pass, ms: r.ms })),
 				},
@@ -444,6 +594,22 @@ export default function practice(pi: ExtensionAPI) {
 				? `I'm working on stage ${stage} of my practice project and I'm stuck. Call the \`hint\` tool for stage ${stage} at tier ${tier ?? 1} and give me the hint text VERBATIM — then stop and let me try. Do not write the code for me.`
 				: `List my practice project's stages with the \`hint\` tool (no stage argument), then ask me which one I want a hint for.`;
 			pi.sendUserMessage(ask);
+		},
+	});
+
+	pi.registerCommand("grade", {
+		description: "Run the hidden acceptance suite: /grade [stage]",
+		handler: async (args, ctx) => {
+			const stage = args.trim();
+			if (typeof ctx.isIdle === "function" && !ctx.isIdle()) {
+				ctx.ui.notify("Wait for the agent to finish first.", "warning");
+				return;
+			}
+			pi.sendUserMessage(
+				stage
+					? `Run the \`grade\` tool for stage ${stage} and show me the failure names and messages only. Don't show me the hidden tests, and don't write my fix.`
+					: `Run the \`grade\` tool for every stage that has a hidden suite and show me the failure names and messages only. Don't show me the hidden tests, and don't write my fix.`,
+			);
 		},
 	});
 
